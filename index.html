@@ -82,6 +82,14 @@
       color: rgba(255, 255, 255, .82);
       font-weight: 650;
     }
+    .brand-tagline {
+      color: #f6c453;
+      font-family: "Brush Script MT", "Segoe Script", "Lucida Handwriting", cursive;
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1.2;
+      text-shadow: 0 2px 8px rgba(6, 78, 59, .35);
+    }
     .login-panel {
       display: flex;
       flex-direction: column;
@@ -98,9 +106,9 @@
       margin-bottom: 22px;
     }
     .logo {
-      width: 118px;
-      height: 118px;
-      border-radius: 999px;
+      width: 300px;
+      height: 300px;
+      border-radius: 100px;
       background: transparent;
       display: grid;
       place-items: center;
@@ -381,7 +389,7 @@
         </div>
         <div>
           <h1>City College of Davao Library</h1>
-          <p class="subtle">Library Management System</p>
+          <p class="brand-tagline">Committed to Excellence</p>
         </div>
       </div>
       <div class="login-panel">
@@ -577,7 +585,7 @@
     const lastUpdated = (book) => book.lastUpdated || book.borrowDate || book.addedDate;
     const nextBarcode = () => `BC${String(books.length + barcodeHistory.length + 1).padStart(3, "0")}`;
     const statusLabel = (status) => status === "missing" ? "Lost" : status[0].toUpperCase() + status.slice(1);
-    const accessionStatusLabel = (status) => status === "missing" ? "Missing" : statusLabel(status);
+    const accessionStatusLabel = (status) => status === "missing" ? "Missing" : status === "replaced" ? "Replaced" : statusLabel(status);
     const inventoryStatus = (status) => status === "missing" ? "lost" : status === "reserved" ? "borrowed" : status;
     const inventoryStatusLabel = (status) => statusLabel(inventoryStatus(status));
     const verificationRecord = (book) => verificationRecords.find(v => v.bookId === book.id) || {};
@@ -980,7 +988,7 @@
               <div><label>Author</label><input value="${esc(selectedBook.author)}" readonly></div>
               <div><label>Category</label><input value="${esc(selectedBook.category)}" readonly></div>
               <div><label>Shelf Location</label><input value="${esc(selectedBook.location || "-")}" readonly></div>
-              <div><label>Current Status</label><select id="accessionStatusOption">${["available","borrowed","missing","damaged"].map(s => `<option value="${s}" ${selectedBook.status === s ? "selected" : ""}>${accessionStatusLabel(s)}</option>`).join("")}</select></div>
+              <div><label>Current Status</label><select id="accessionStatusOption">${["available","borrowed","missing","damaged","replaced"].map(s => `<option value="${s}" ${selectedBook.status === s ? "selected" : ""}>${accessionStatusLabel(s)}</option>`).join("")}</select></div>
             </div></div>
             <div class="dialog-foot" style="flex-wrap:wrap">
               <button class="primary" type="button" id="markAccessionStatus">Update</button>
@@ -1489,7 +1497,7 @@
       books = books.map(b => b.id === book.id ? {
         ...b,
         status:normalizedStatus,
-        availableCopies:normalizedStatus === "available" ? Math.max(1, b.availableCopies || 0) : 0,
+        availableCopies:["available","replaced"].includes(normalizedStatus) ? Math.max(1, b.availableCopies || 0) : 0,
         borrower:normalizedStatus === "borrowed" ? (b.borrower || "Recorded borrower") : "",
         borrowerId:normalizedStatus === "borrowed" ? b.borrowerId : "",
         borrowDate:normalizedStatus === "borrowed" ? (b.borrowDate || isoDate()) : "",
