@@ -385,6 +385,7 @@
       verification: ["Stock Verification", "Verify library stock"],
       missing: ["Missing Items", "Track missing items"],
       damaged: ["Damaged Items", "Manage damaged items"],
+      "accession-update": ["Accession Update", "Update item accession numbers"],
       borrow: ["Borrow Books", "Process book loans"],
       return: ["Return Books", "Process book returns"],
       renew: ["Renew Loans", "Renew book loans"],
@@ -406,7 +407,7 @@
     const menuItems = [
       { id: "dashboard", label: "Dashboard", icon: "DB", roles: ["admin", "librarian", "member"] },
       { id: "books", label: "Catalog Management", icon: "BK", roles: ["admin", "librarian"], children: [["books","Books"],["authors","Authors"],["publishers","Publishers"],["categories","Categories"]] },
-      { id: "inventory", label: "Inventory Management", icon: "IN", roles: ["admin", "librarian"], children: [["inventory","Inventory List"],["barcode","Barcode Management"],["assets","Asset Tracking"],["verification","Stock Verification"],["missing","Missing Items"],["damaged","Damaged Items"]] },
+      { id: "inventory", label: "Inventory Management", icon: "IN", roles: ["admin", "librarian"], children: [["inventory","Inventory List"],["barcode","Barcode Management"],["assets","Asset Tracking"],["verification","Stock Verification"],["missing","Missing Items"],["damaged","Damaged Items"],["accession-update","Accession Update"]] },
       { id: "borrow", label: "Circulation", icon: "CR", roles: ["admin", "librarian", "member"], children: [["borrow","Borrow Books"],["return","Return Books"],["renew","Renew Loans"],["reservations","Reservations"],["fines","Fine Management",["admin","librarian"]]] },
       { id: "members", label: "Members", icon: "MB", roles: ["admin", "librarian"], children: [["members","All Members"],["students","Students"],["faculty","Faculty"],["staff","Staff"]] },
       { id: "borrowing-reports", label: "Reports", icon: "RP", roles: ["admin", "librarian"], children: [["borrowing-reports","Borrowing Reports"],["overdue-reports","Overdue Reports"],["lost-reports","Lost Books Reports"],["statistics","Statistics"]] },
@@ -419,6 +420,7 @@
     let expanded = new Set(["books", "borrow", "members"]);
     let filters = { search: "", status: "all", category: "" };
     let borrowSelection = { memberId:"M001", bookId:"1" };
+    let accessionLookup = { number:"", bookId:null, verified:false };
     let books = [
       { id:"1", title:"The Great Gatsby", author:"F. Scott Fitzgerald", isbn:"978-0743273565", category:"Fiction", publisher:"Scribner", callNumber:"FIC FIT", status:"available", location:"Shelf A1", publishedYear:1925, copies:3, availableCopies:2, addedDate:"2024-01-15", barcode:"BC001" },
       { id:"2", title:"Clean Code", author:"Robert C. Martin", isbn:"978-0132350884", category:"Technology", publisher:"Prentice Hall", callNumber:"TEC MAR", status:"borrowed", location:"Shelf B2", publishedYear:2008, copies:2, availableCopies:0, addedDate:"2024-01-20", borrower:"John Smith", borrowerId:"M001", dueDate:"2024-02-15", borrowDate:"2024-01-28", barcode:"BC002" },
@@ -481,6 +483,7 @@
       { bookId:"7", description:"Cover torn and several pages water-stained.", dateReported:"2024-01-20T14:00:00", reportedBy:"Admin", repairStatus:"For Repair", archived:false },
       { bookId:"6", description:"Spine detached and item previously flagged for review.", dateReported:"2024-01-18T13:00:00", reportedBy:"Admin", repairStatus:"Beyond Repair", archived:false }
     ];
+    let accessionHistory = [];
 
     const $ = (sel) => document.querySelector(sel);
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
@@ -578,6 +581,7 @@
       if (currentPage === "verification") return renderStockVerification();
       if (currentPage === "missing") return renderStockVerification("Missing Items");
       if (currentPage === "damaged") return renderDamagedItems();
+      if (currentPage === "accession-update") return renderAccessionUpdate();
       if (currentPage === "borrow") return renderBorrowBooks();
       const [title, desc] = pages[currentPage] || ["Module", "Library module"];
       $("#main").innerHTML = pageHead(title, desc) + `<div class="card coming"><div class="coming-icon">...</div><h2>Module Coming Soon</h2><p class="subtle" style="margin:8px auto 0;max-width:430px">The ${esc(title)} module is under development. Check back later for full functionality.</p></div>`;
@@ -874,6 +878,55 @@
             <div class="dialog-foot"><button class="primary" type="submit">Borrow Book</button></div>
           </div>
         </form>`;
+      renderNav();
+    }
+
+    function renderAccessionUpdate() {
+      const selectedBook = accessionLookup.verified ? books.find(b => b.id === accessionLookup.bookId) : null;
+      $("#main").innerHTML = pageHead("Accession Update", "Update a book copy status using its accession number") + `
+        <div class="grid" style="gap:18px">
+          <div class="card">
+            <div class="card-title">Input Section</div>
+            <div class="dialog-body">
+              <form id="accessionVerifyForm">
+                <div class="form-grid">
+                  <div><label>Accession Number (required)</label><input id="accessionNumberLookup" name="accessionNumber" value="${esc(accessionLookup.number)}" placeholder="Example: ACC-0001" required></div>
+                  <div style="display:flex;align-items:end"><button class="primary" type="submit">Search/Verify</button></div>
+                </div>
+              </form>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Book Information (Auto-Displayed)</div>
+            ${selectedBook ? `<div class="dialog-body"><div class="form-grid">
+              <div><label>Accession Number</label><input value="${esc(accession(selectedBook))}" readonly></div>
+              <div><label>Barcode</label><input value="${esc(selectedBook.barcode || "-")}" readonly></div>
+              <div><label>Book Title</label><input value="${esc(selectedBook.title)}" readonly></div>
+              <div><label>Author</label><input value="${esc(selectedBook.author)}" readonly></div>
+              <div><label>Category</label><input value="${esc(selectedBook.category)}" readonly></div>
+              <div><label>Shelf Location</label><input value="${esc(selectedBook.location || "-")}" readonly></div>
+              <div><label>Current Status</label><input value="${esc(inventoryStatusLabel(selectedBook.status))}" readonly></div>
+            </div></div>
+            <div class="dialog-foot" style="flex-wrap:wrap">
+              <button class="primary" type="button" id="markAccessionAvailable">Mark as Available</button>
+              <button class="secondary" type="button" id="clearAccessionLookup">Clear</button>
+              <button class="secondary" type="button" id="cancelAccessionLookup">Cancel</button>
+            </div>` : `<div class="empty">Enter an accession number and click Search/Verify to display book details.</div>`}
+          </div>
+          <div class="card">
+            <div class="card-title">Update History</div>
+            <div class="table-wrap"><table>
+              <thead><tr><th>Accession Number</th><th>Book Title</th><th>Previous Status</th><th>New Status</th><th>Date Updated</th><th>Updated By</th></tr></thead>
+              <tbody>${accessionHistory.length ? accessionHistory.map(h => `<tr><td class="mono">${esc(h.accessionNumber)}</td><td>${esc(h.title)}</td><td>${esc(h.previousStatus)}</td><td><span class="pill" style="${statusClass("available")}">${esc(h.newStatus)}</span></td><td>${fmt(h.dateUpdated)}</td><td>${esc(h.updatedBy)}</td></tr>`).join("") : `<tr><td colspan="6" class="empty">No accession updates yet.</td></tr>`}</tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-title">How It Works</div>
+            <div class="dialog-body">
+              <p class="subtle">Enter an accession number. The system searches for the matching book copy and displays details. Confirm the update to change the status to Available and add the copy to active inventory.</p>
+            </div>
+          </div>
+        </div>`;
       renderNav();
     }
 
@@ -1344,6 +1397,49 @@
       renderPage();
     }
 
+    function verifyAccessionNumber(number) {
+      const clean = String(number || "").trim().toLowerCase();
+      const book = books.find(b => accession(b).toLowerCase() === clean);
+      accessionLookup = { number, bookId:book ? book.id : null, verified:Boolean(book) };
+      if (!book) alert("No book copy found for that accession number.");
+      renderAccessionUpdate();
+    }
+
+    function markAccessionAvailable() {
+      const book = books.find(b => b.id === accessionLookup.bookId);
+      if (!book) return;
+      const previousStatus = inventoryStatusLabel(book.status);
+      books = books.map(b => b.id === book.id ? {
+        ...b,
+        status:"available",
+        availableCopies:Math.max(1, b.availableCopies || 0),
+        borrower:"",
+        borrowerId:"",
+        borrowDate:"",
+        dueDate:"",
+        lastUpdated:new Date().toISOString()
+      } : b);
+      accessionHistory.unshift({
+        accessionNumber:accession(book),
+        title:book.title,
+        previousStatus,
+        newStatus:"Available",
+        dateUpdated:new Date().toISOString(),
+        updatedBy:currentUser.name
+      });
+      activities.unshift({
+        id:id(),
+        type:"add",
+        description:`Marked "${book.title}" available via accession ${accession(book)}`,
+        user:currentUser.name,
+        timestamp:new Date().toISOString(),
+        bookTitle:book.title
+      });
+      addMovementHistory(book, previousStatus, "Available", "Accession Status Updated");
+      alert("Book copy marked Available and added to active inventory.");
+      renderPage();
+    }
+
     function closeModal(id) { $("#" + id).style.display = "none"; }
 
     document.addEventListener("click", (e) => {
@@ -1371,6 +1467,16 @@
       if (t.id === "compareStock") compareStock();
       if (t.id === "verificationReport") generateVerificationReport();
       if (t.id === "reportDamage") openReportDamage();
+      if (t.id === "markAccessionAvailable") markAccessionAvailable();
+      if (t.id === "clearAccessionLookup") {
+        accessionLookup = { number:"", bookId:null, verified:false };
+        renderAccessionUpdate();
+      }
+      if (t.id === "cancelAccessionLookup") {
+        accessionLookup = { number:"", bookId:null, verified:false };
+        currentPage = "inventory";
+        renderPage();
+      }
       if (t.dataset.edit) openBookForm(books.find(b => b.id === t.dataset.edit));
       if (t.dataset.view) viewBook(books.find(b => b.id === t.dataset.view));
       if (t.dataset.printBarcode) printBarcode(books.find(b => b.id === t.dataset.printBarcode));
@@ -1442,6 +1548,7 @@
         $("#searchDamaged").focus();
         $("#searchDamaged").setSelectionRange(filters.search.length, filters.search.length);
       }
+      if (e.target.id === "accessionNumberLookup") accessionLookup.number = e.target.value;
     });
     document.addEventListener("change", (e) => {
       if (e.target.id === "borrowMemberSelect") {
@@ -1473,6 +1580,11 @@
       if (e.target.id === "borrowBooksForm") {
         e.preventDefault();
         processBorrow(e.target);
+      }
+      if (e.target.id === "accessionVerifyForm") {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(e.target));
+        verifyAccessionNumber(data.accessionNumber);
       }
     });
   </script>
